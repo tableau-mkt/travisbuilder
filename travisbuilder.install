@@ -1,0 +1,21 @@
+<?php
+/**
+ * @file travisbuilder.install
+ * TODO: Enter file description here.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function travisbuilder_uninstall() {
+  $variables = array(
+    'travis_repo',
+  );
+
+  foreach ($variables as $variable) {
+    variable_del('travisbuilder_' . $variable);
+  }
+}
+
+
+

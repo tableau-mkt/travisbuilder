@@ -1,0 +1,8 @@
+name = Travis Builder
+description = Trigger CI builds within Drupal.
+dependencies[] = rules
+core = 7.x
+
+files[] = travisbuilder.module
+files[] = travisbuilder.install
+files[] = plugins/travisbuilder.rules.inc

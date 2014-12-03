@@ -1,0 +1,162 @@
+<?php
+/**
+ * @file travisbuilder.module
+ * Trigger CI builds within Drupal.
+ */
+
+use Travis\Client;
+
+
+/**
+ * Implements hook_menu().
+ */
+function travisbuilder_menu() {
+  $items['admin/system/travis-builder'] = array(
+    'title' => 'Travis Builder',
+    'description' => 'Configure Travis settings.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('travisbuilder_settings_form'),
+    'access arguments' => array('administer site configuration'),
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'travisbuilder.admin.inc'
+  );
+  return $items;
+}
+
+
+/**
+ * Implements hook_admin_paths().
+ */
+function travisbuilder_admin_paths() {
+  $paths = array(
+    'admin/system/travis-builder' => TRUE,
+  );
+  return $paths;
+}
+
+
+/**
+ * Implements hook_cron().
+ */
+/*
+function travisbuilder_cron() {
+  // Ensure build schedule is honored.
+  $expires = variable_get('travisbuilder_cron_last_run', REQUEST_TIME);
+  if ((REQUEST_TIME - $expires) > variable_get('travisbuilder_schedule', 43200)) {
+
+  }
+  travisbuilder_trigger_build();
+  variable_set('travisbuilder_cron_last_run', REQUEST_TIME);
+
+  // Long-running operation example, leveraging a queue:
+  // Fetch feeds from other sites.
+  $result = db_query('SELECT * FROM {aggregator_feed} WHERE checked + refresh < :time AND refresh <> :never', array(
+    ':time' => REQUEST_TIME,
+    ':never' => AGGREGATOR_CLEAR_NEVER,
+  ));
+  $queue = DrupalQueue::get('aggregator_feeds');
+  foreach ($result as $feed) {
+    $queue->createItem($feed);
+  }
+}
+*/
+
+
+/**
+ * Wrapper to return a Travis client.
+ *
+ * @param string $repository
+ *   Name of repository.
+ *
+ * @return \Travis\Client|null
+ *   If the module is successfully configured, a fully configured Elomentary
+ *   client will be returned. Otherwise, NULL will be returned.
+ */
+function travisbuilder_repo_client($repository) {
+  $repo_client = &drupal_static(__FUNCTION__, array());
+
+  // Only instantiate a new client if one hasn't already been.
+  if (!array_key_exists($repo_client)) {
+    // Configurations for instantiating. Intened to mix param(s) and global settings.
+    $configs = array(
+      'repo' => $repository,
+    );
+
+    if (!in_array('', $configs['repo'])) {
+      // Instantiate the Elomentary client.
+      $client = new Client();
+
+      // @todo Authenticate.
+      // https://github.com/l3l0/php-travis-client/issues/4
+
+      // Allow other modules to alter the client before it is used / returned.
+      drupal_alter('travisbuilder_client', $client);
+      // Point to repo.
+      $repo_client = $client->fetchRepository($configs['repo']);
+    }
+    else {
+      $repo_client = NULL;
+    }
+  }
+
+  return $repo_client;
+}
+
+
+/**
+ * Trigger a Travis build to occur on the globally configured repo.
+ *
+ * Resources:
+ *   http://docs.travis-ci.com/api/#builds
+ *   https://github.com/l3l0/php-travis-client/blob/master/src/Travis/Client/Entity/Repository.php
+ *
+ * @param string $repository
+ *   Name of repository.
+ */
+function _travisbuilder_trigger_build($repository) {
+  $repo_client = travisbuilder_repo_client($repository);
+  $repo_client->triggerBuild();
+}
+
+
+/**
+ * Provide a list of recent builds for display.
+ *
+ * @param string $repository
+ *   Name of repository.
+ *
+ * @return array
+ *   Renderable table array of recent builds.
+ */
+function _travisbuilder_list_builds($repository) {
+  $repo_client = travisbuilder_repo_client($repository);
+
+  if($repo_client) {
+    // Collect content.
+    $rows = array();
+    foreach ($repo_client->getBuilds() as $build) {
+      $rows[] = array(
+        'build' => $build->getId() . ' -- ' . $build->getId(),
+        'time' => $build->getLastBuildStartedAt(),
+        'slug' => $build->getSlug() . ' -- ' . $build->getDescription(),
+        'status' => $build->getStatus(),
+      );
+    }
+    // Construct output array.
+    $table = array(
+      'header' => array(
+        'build' => t('Build'),
+        'time' => t('Time'),
+        'slug' => t('Slug'),
+        'status' => t('Status')
+      ),
+      'rows' => $rows,
+      '#empty' => t('No invited users yet'),
+    );
+
+    return theme('table', $table);
+  }
+  else {
+    return '';
+  }
+}
