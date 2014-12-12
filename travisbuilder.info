@@ -5,4 +5,4 @@ core = 7.x
 
 files[] = travisbuilder.module
 files[] = travisbuilder.install
-files[] = plugins/travisbuilder.rules.inc
+files[] = travisbuilder.rules.inc

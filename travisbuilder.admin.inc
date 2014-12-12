@@ -4,48 +4,127 @@
  * Implements settings for the module.
  */
 function travisbuilder_settings_form($form_state) {
-  $module_name = 'travisbuilder_';
+  $configs = _travisbuilder_configs();
   $form = array();
 
-  $form[$module_name . 'repo'] = array(
+  // @ todo Allow separate repos to trigger as ctools configs.
+  $form[$prefix . 'repo'] = array(
     '#type' => 'textfield',
     '#title' => t('Travis repository'),
-    '#default_value' => variable_get($module_name . 'repo', ''),
+    '#default_value' => $configs['repo'],
     '#description' => t('Travis repo to trigger a build. Example: username/my-project-repo'),
+  );
+
+  $form[$prefix . 'branch'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Branch to build'),
+    '#default_value' => $configs['branch'],
+    '#description' => t('Branch of repository on which to re-trigger most recent build. Examples: master, deploy'),
   );
 
   // @todo Use a temporary token generated each time.
   // http://docs.travis-ci.com/api/#creating-a-temporary-github-token
-  $form[$module_name . 'github_token'] = array(
+  $form[$prefix . 'access_token'] = array(
     '#type' => 'textfield',
-    '#title' => t('GitHub token'),
-    '#default_value' => variable_get($module_name . 'github_token', ''),
-    '#description' => t('Token from GitHub service allowing authentication into this repository.'),
+    '#title' => t('Access token'),
+    '#default_value' => $configs['access_token'],
+    '#description' => t('Token from GitHub service allowing authentication into this repository. Excluding token assumes repo is public.'),
   );
 
-  $form[$module_name . 'schedule'] = array(
+  $form[$prefix . 'schedule'] = array(
     '#type' => 'select',
-    '#title' => t('Build trigger schedule'),
-    '#default_value' => variable_get($module_name . 'schedule', ''),
-    '#description' => t('Automated build schedule timeline.'),
+    '#title' => t('Build minimum lifetime'),
+    '#default_value' => $configs['schedule'],
+    '#description' => t('This build lifetime will be enforced to ensure .'),
     '#options' => array(
-      3600 => t('1 hour'),
-      10800 => t('3 hours'),
-      21600 => t('6 hours'),
-      43200 => t('12 hours'),
-      86400 => t('1 day'),
-      259200 => t('3 days'),
-      604800 => t('1 week'),
-      2592000 => t('1 month'),
+      0 => t('None'),
+      900 => t('!num minutes', array('!num' => '15')),
+      3600 => t('!num hour', array('!num' => '1')),
+      21600 => t('!num hours', array('!num' => '6')),
+      86400 => t('!num day', array('!num' => '1')),
+      604800 => t('!num week', array('!num' => '1')),
+      2592000 => t('!num month', array('!num' => '1')),
     ),
-    '#default_value' => variable_get($module_name . 'schedule', array()),
-  );
-
-  // @ todo Allow separate repos to trigger as ctools configs.
-  $repository = variable_get('travisbuilder_repo', '');
-  $form['build_list'] = array(
-    '#markup' => _travisbuilder_list_builds($repository),
   );
 
   return system_settings_form($form);
+}
+
+
+/**
+ * Deliver a page for build history.
+ *
+ * @return string
+ *   Page content.
+ */
+function travisbuilder_build_list_page() {
+  drupal_set_title(t('Travis Build History'));
+  $output = t('<p>Recent Travis builds.</p>');
+  $output .= _travisbuilder_list_builds(variable_get('travisbuilder_repo', ''));
+
+  return $output;
+}
+
+
+/**
+ * Provide a list of recent builds for display.
+ *
+ * Resources:
+ *   http://docs.travis-ci.com/api/#builds
+ *   http://docs.travis-ci.com/api/#jobs
+ *
+ * @param string $repository
+ *   Name of repository.
+ *
+ * @return array
+ *   Renderable table array of recent builds.
+ */
+function _travisbuilder_list_builds($repository) {
+  $repo_client = travisbuilder_repo_client($repository);
+  // Render array.
+  $table = array(
+    'header' => array(
+      'build' => t('Build'),
+      'status' => t('Status'),
+      'message' => t('Message'),
+      'commit' => t('Commit'),
+      'time' => t('Completed'),
+    ),
+    'empty' =>  t('No builds available.'),
+  );
+  $rows = array();
+
+  if($repo_client) {
+    // Collect content.
+    $builds = $repo_client->getBuilds();
+    foreach ($builds as $build) {
+      $build_url = format_string('https://travis-ci.org/!repo/builds/!id', array(
+        '!repo' => check_plain($repository),
+        '!id' => $build->getId(),
+      ));
+      switch ($build->getResult()) {
+        case 0:
+          $status = t('Pass');
+          break;
+        case 1:
+          $status = t('Fail');
+          break;
+        default:
+          $status = t('N/A');
+          break;
+      }
+      // Build table row.
+      $rows[] = array(
+        'build' => l('#' . $build->getNumber(), $build_url),
+        'status' => $status,
+        'message' => $build->getMessage(),
+        'commit' => substr($build->getCommit(), 0, 10) . ' (' . $build->getBranch() . ')',
+        'time' => $build->getFinishedAt()->format('m-d-Y H:i:s'),
+      );
+    }
+    // Construct render array.
+    $table['rows'] = $rows;
+  }
+
+  return theme('table', $table);
 }

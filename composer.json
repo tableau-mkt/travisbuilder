@@ -1,33 +1,9 @@
 {
-    "name": "tableau-mkt/travisbuilder",
-    "description": "Drupal module enabling builds on Travis.",
-    "version": "0.0.1",
-    "homepage": "https://www.drupal.org/project/travisbuilder",
-    "license": "MIT",
-    "authors": [
-        {
-            "name": "Tableau Marketing Web Team",
-            "email": "marketing-webteam@tableausoftware.com"
-        }
-    ],
-    "require": {
-        "l3l0/php-travis-client": "dev-master"
-    },
-    "repositories": [
-        {
-            "type": "package",
-            "package": {
-                "name": "l3l0/php-travis-client",
-                "version": "dev-master",
-                "dist": {
-                    "type": "zip",
-                    "url": "https://github.com/l3l0/php-travis-client/archive/master.zip",
-                    "reference": "master"
-                },
-                "autoload": {
-                    "classmap": ["."]
-                }
-            }
-        }
-    ]
+  "require": {
+    "l3l0/php-travis-client": "dev-master"
+  },
+  "repositories": [{
+    "type": "vcs",
+    "url": "git@github.com:tableau-mkt/php-travis-client.git"
+  }]
 }
