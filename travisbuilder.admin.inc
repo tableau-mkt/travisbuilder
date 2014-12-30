@@ -5,6 +5,7 @@
  */
 function travisbuilder_settings_form($form_state) {
   $configs = _travisbuilder_configs();
+  $prefix = 'travisbuilder_';
   $form = array();
 
   // @ todo Allow separate repos to trigger as ctools configs.
@@ -15,13 +16,6 @@ function travisbuilder_settings_form($form_state) {
     '#description' => t('Travis repo to trigger a build. Example: username/my-project-repo'),
   );
 
-  $form[$prefix . 'branch'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Branch to build'),
-    '#default_value' => $configs['branch'],
-    '#description' => t('Branch of repository on which to re-trigger most recent build. Examples: master, deploy'),
-  );
-
   // @todo Use a temporary token generated each time.
   // http://docs.travis-ci.com/api/#creating-a-temporary-github-token
   $form[$prefix . 'access_token'] = array(
@@ -29,6 +23,13 @@ function travisbuilder_settings_form($form_state) {
     '#title' => t('Access token'),
     '#default_value' => $configs['access_token'],
     '#description' => t('Token from GitHub service allowing authentication into this repository. Excluding token assumes repo is public.'),
+  );
+
+  $form[$prefix . 'branch'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Default branch'),
+    '#default_value' => $configs['branch'],
+    '#description' => t('Branch of repository on which to trigger the recent build. Can be overridden within each Rule. Examples: master, deploy'),
   );
 
   $form[$prefix . 'schedule'] = array(
@@ -80,7 +81,8 @@ function travisbuilder_build_list_page() {
  *   Renderable table array of recent builds.
  */
 function _travisbuilder_list_builds($repository) {
-  $repo_client = travisbuilder_repo_client($repository);
+  $client = travisbuilder_client($repository);
+  $repo_client = $client->fetchRepository($repository);
   // Render array.
   $table = array(
     'header' => array(

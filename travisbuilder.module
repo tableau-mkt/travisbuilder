@@ -36,6 +36,15 @@ function travisbuilder_menu() {
     'weight' => 10,
   ) + $common;
 
+  $items[$path . '/build'] = array(
+    'title' => 'Trigger Build',
+    'description' => t('Trigger a Travis build via a URL.'),
+    'type' => MENU_CALLBACK,
+    'page callback' => array('travisbuilder_build_trigger_page'),
+    //'page arguments' => array(1),
+    'access arguments' => array('administer site configuration'),
+  );
+
   return $items;
 }
 
@@ -48,6 +57,24 @@ function travisbuilder_admin_paths() {
     'admin/system/travis-builder' => TRUE,
   );
   return $paths;
+}
+
+
+/**
+ * Page callback to trigger a build manually.
+ * @return [type] [description]
+ */
+function travisbuilder_build_trigger_page() {
+  // @ todo Allow separate repos to trigger as ctools configs.
+  $repository = check_plain(variable_get('travisbuilder_repo', ''));
+  $result = (_travisbuilder_trigger_build($repository)) ? t('Sucess') : t('Failed');
+
+  drupal_set_title(t('Trigger Build'));
+  $output = t('<p>Most recent build re-start attempted.</p>');
+  $output .= t('<strong>Repository:</strong> !repo</p>', array('!repo' => $repository));
+  $output .= t('<strong>Result:</strong> !result', array('!result' => $result));
+
+  return $output;
 }
 
 
@@ -83,11 +110,11 @@ function _travisbuilder_configs() {
  *   If the module is successfully configured, a fully configured Elomentary
  *   client will be returned. Otherwise, NULL will be returned.
  */
-function travisbuilder_repo_client($repository) {
-  $repo_client = &drupal_static(__FUNCTION__, array());
+function travisbuilder_client($repository) {
+  $client = &drupal_static(__FUNCTION__, array());
 
   // Only instantiate a new client if one hasn't already been.
-  if (!$repo_client && $repository) {
+  if (!$client && $repository) {
     // @todo With multiple repos, will need update.
     $configs = _travisbuilder_configs();
     $configs['repo'] = $repository;
@@ -106,13 +133,10 @@ function travisbuilder_repo_client($repository) {
 
       // Allow other modules to alter the client before it is used / returned.
       drupal_alter('travisbuilder_client', $client);
-
-      // Point to repo.
-      $repo_client = $client->fetchRepository($configs['repo']);
     }
   }
 
-  return $repo_client;
+  return $client;
 }
 
 
@@ -124,34 +148,39 @@ function travisbuilder_repo_client($repository) {
  *
  * @param string $repository
  *   Name of repository.
+ *
+ * @return boolean
+ *   Result of build.
  */
-function _travisbuilder_trigger_build($repository) {
+function _travisbuilder_trigger_build($repository, $ignore_lifetime = FALSE, $branch = FALSE) {
   $configs = _travisbuilder_configs();
   $now = time();
 
   // Honor minimum lifetime.
-  if (($now - variable_get('travisbuilder_last', 0)) > $configs['schedule']) {
+  if ($ignore_lifetime || ($now - variable_get('travisbuilder_last', 0)) > $configs['schedule']) {
     // Get the right build and trigger.
-    $repo_client = travisbuilder_repo_client($repository);
+    $client = travisbuilder_client($repository);
+    $repo_client = $client->fetchRepository($repository);
+
     $builds = $repo_client->getBuilds()->findBy(array(
-      'branch' => $configs['branch'],
+      'branch' => $branch ?: $configs['branch'],
     ));
-    $result = $repo_client->restartBuild($builds[0]);
+    $build = $builds->first();
+    $result = $client->restartBuild($build, $configs['access_token']);
 
     // Log it and handle next time.
     variable_set('travisbuilder_last', $now);
     $build_url = format_string('https://travis-ci.org/!repo/builds/!id', array(
       '!repo' => $repository,
-      '!id' => $build[0]->getId(),
+      '!id' => $build->getId(),
     ));
     watchdog(
       'travisbuilder',
       t('Travis build triggered. Repository: !repo. Response: @result'),
       array('!repo' => $repository, '@result' => $result),
       WATCHDOG_NOTICE,
-      $link = l('Visit Travis build #' . $builds[0]->getNumber(), $build_url);
+      $link = l('Visit Travis build #' . $build->getNumber(), $build_url)
     );
-
     return TRUE;
   }
   else {
