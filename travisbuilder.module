@@ -6,6 +6,8 @@
 
 use Travis\Client;
 
+define('TRAVISBUILDER_API_FREE', 'https://api.travis-ci.org');
+define('TRAVISBUILDER_API_PAID', 'https://api.travis-ci.com');
 
 /**
  * Implements hook_menu().
@@ -39,7 +41,7 @@ function travisbuilder_menu() {
   $items[$path . '/build'] = array(
     'title' => 'Trigger Build',
     'description' => t('Trigger a Travis build via a URL.'),
-    'type' => MENU_CALLBACK,
+    'type' => MENU_LOCAL_TASK,
     'page callback' => array('travisbuilder_build_trigger_page'),
     //'page arguments' => array(1),
     'access arguments' => array('administer site configuration'),
@@ -67,12 +69,13 @@ function travisbuilder_admin_paths() {
 function travisbuilder_build_trigger_page() {
   // @ todo Allow separate repos to trigger as ctools configs.
   $repository = check_plain(variable_get('travisbuilder_repo', ''));
-  $result = (_travisbuilder_trigger_build($repository)) ? t('Sucess') : t('Failed');
+  $result = _travisbuilder_trigger_build($repository);
 
   drupal_set_title(t('Trigger Build'));
   $output = t('<p>Most recent build re-start attempted.</p>');
-  $output .= t('<strong>Repository:</strong> !repo</p>', array('!repo' => $repository));
-  $output .= t('<strong>Result:</strong> !result', array('!result' => $result));
+  $output .= t('<p><strong>Repository:</strong> !repo</p>', array('!repo' => $repository));
+  $output .= t('<p><strong>Branch:</strong> !branch</p>', array('!branch' => $result['branch']));
+  $output .= t('<p><strong>Result:</strong> !result</p>', array('!result' => $result['status_message']));
 
   return $output;
 }
@@ -87,6 +90,7 @@ function _travisbuilder_configs() {
   // @todo With multiple repos, will need update.
   $configs = array();
   $defaults = array(
+    'private' => 0,
     'repo' => '',
     'branch' => 'master',
     'access_token' => '',
@@ -128,9 +132,6 @@ function travisbuilder_client($repository) {
     }
 
     if ($client) {
-      // @todo Authenticate.
-      // https://github.com/l3l0/php-travis-client/issues/4
-
       // Allow other modules to alter the client before it is used / returned.
       drupal_alter('travisbuilder_client', $client);
     }
@@ -154,36 +155,83 @@ function travisbuilder_client($repository) {
  */
 function _travisbuilder_trigger_build($repository, $ignore_lifetime = FALSE, $branch = FALSE) {
   $configs = _travisbuilder_configs();
-  $now = time();
+  $branch = $branch ?: $configs['branch'];
+  $time_since_last = time() - variable_get('travisbuilder_last', 0);
+
+//$configs['access_token'] = '555';
 
   // Honor minimum lifetime.
-  if ($ignore_lifetime || ($now - variable_get('travisbuilder_last', 0)) > $configs['schedule']) {
-    // Get the right build and trigger.
-    $client = travisbuilder_client($repository);
-    $repo_client = $client->fetchRepository($repository);
+  if ($ignore_lifetime || ($time_since_last > $configs['schedule'])) {
 
-    $builds = $repo_client->getBuilds()->findBy(array(
-      'branch' => $branch ?: $configs['branch'],
-    ));
+    // Get the right build.
+    $client = travisbuilder_client($repository);
+    if ($configs['private']) {
+      $client->setApiUrl(TRAVISBUILDER_API_PAID);
+    }
+    $repo_client = $client->fetchRepository($repository, $configs['access_token']);
+    $builds = $repo_client->getBuilds()->findBy(array('branch' => $branch));
     $build = $builds->first();
-    $result = $client->restartBuild($build, $configs['access_token']);
+
+    // Couldn't get the library to play nice with file_get_contents().
+    // $result = $client->restartBuild($build, $configs['access_token']);
+    $result = _travisbuilder_trigger_request($build->getId());
+    $result['branch'] = $branch;
 
     // Log it and handle next time.
-    variable_set('travisbuilder_last', $now);
+    variable_set('travisbuilder_last', time());
     $build_url = format_string('https://travis-ci.org/!repo/builds/!id', array(
       '!repo' => $repository,
       '!id' => $build->getId(),
     ));
-    watchdog(
-      'travisbuilder',
-      t('Travis build triggered. Repository: !repo. Response: @result'),
-      array('!repo' => $repository, '@result' => $result),
-      WATCHDOG_NOTICE,
+    $message = 'Travis build triggered. Repository: !repo. Branch: @branch. Build ID: @build. Status: @status. Response code: @code. Message: @data';
+    $vars = array(
+      '!repo' => $repository,
+      '@status' => $result['status_message'],
+      '@branch' => $branch,
+      '@build' => $build->getId(),
+      '@code' => $result['code'],
+      '@data' => $result['data'],
+    );
+    watchdog('travisbuilder', $message, $vars, WATCHDOG_NOTICE,
       $link = l('Visit Travis build #' . $build->getNumber(), $build_url)
     );
-    return TRUE;
+
+    return $result;
   }
   else {
     return FALSE;
   }
+}
+
+
+/**
+ * Send the request to retrigger a build.
+ *
+ * @param  int $build_id
+ *   Travis build id to act upon, for URL construction.
+ * @param  string $token
+ *   Travis user authorization token.
+ * @return array
+ *   Response items the calling function(s) might care about.
+ */
+function _travisbuilder_trigger_request($build_id) {
+  $configs = _travisbuilder_configs();
+  $api_url = ($configs['private']) ? TRAVISBUILDER_API_PAID : TRAVISBUILDER_API_FREE;
+  $url = sprintf('%s/builds/%s/restart.json', $api_url, $build_id);
+
+  $headers = array(
+    'Authorization' => 'token ' . $configs['access_token'],
+  );
+  $response = drupal_http_request($url, array(
+    'data' => '',
+    'headers' => $headers,
+    'timeout' => 5,
+    'method' => 'POST',
+  ));
+
+  return array(
+    'data' => $response->data,
+    'status_message' => $response->status_message,
+    'code' => $response->code,
+  );
 }

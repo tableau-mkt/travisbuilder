@@ -8,12 +8,11 @@ function travisbuilder_settings_form($form_state) {
   $prefix = 'travisbuilder_';
   $form = array();
 
-  // @ todo Allow separate repos to trigger as ctools configs.
-  $form[$prefix . 'repo'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Travis repository'),
-    '#default_value' => $configs['repo'],
-    '#description' => t('Travis repo to trigger a build. Example: username/my-project-repo'),
+  $form[$prefix . 'private'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Private account'),
+    '#default_value' => $configs['private'],
+    '#description' => t('Enable if using the paid private version of Travis.'),
   );
 
   // @todo Use a temporary token generated each time.
@@ -22,21 +21,14 @@ function travisbuilder_settings_form($form_state) {
     '#type' => 'textfield',
     '#title' => t('Access token'),
     '#default_value' => $configs['access_token'],
-    '#description' => t('Token from GitHub service allowing authentication into this repository. Excluding token assumes repo is public.'),
-  );
-
-  $form[$prefix . 'branch'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Default branch'),
-    '#default_value' => $configs['branch'],
-    '#description' => t('Branch of repository on which to trigger the recent build. Can be overridden within each Rule. Examples: master, deploy'),
+    '#description' => t('Access token allowing authentication with your account. Generate via travis-cli utility.'),
   );
 
   $form[$prefix . 'schedule'] = array(
     '#type' => 'select',
     '#title' => t('Build minimum lifetime'),
     '#default_value' => $configs['schedule'],
-    '#description' => t('This build lifetime will be enforced to ensure .'),
+    '#description' => t('This build lifetime will be enforced to avoid build overlap.'),
     '#options' => array(
       0 => t('None'),
       900 => t('!num minutes', array('!num' => '15')),
@@ -46,6 +38,21 @@ function travisbuilder_settings_form($form_state) {
       604800 => t('!num week', array('!num' => '1')),
       2592000 => t('!num month', array('!num' => '1')),
     ),
+  );
+
+  // @ todo Allow separate repos to trigger as ctools configs.
+  $form[$prefix . 'repo'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Travis repository'),
+    '#default_value' => $configs['repo'],
+    '#description' => t('Travis repo to trigger a build. Example: username/my-project-repo'),
+  );
+
+  $form[$prefix . 'branch'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Default branch'),
+    '#default_value' => $configs['branch'],
+    '#description' => t('Branch of repository on which to trigger the recent build. Can be overridden within each Rule. Examples: master, deploy'),
   );
 
   return system_settings_form($form);
