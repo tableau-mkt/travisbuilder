@@ -4,6 +4,9 @@
  * Rules integration.
  */
 
+/**
+ * Implements hook_rules_action_info().
+ */
 function travisbuilder_rules_action_info() {
   return array(
     'travisbuilder_action_trigger_build' => array(
@@ -32,9 +35,17 @@ function travisbuilder_rules_action_info() {
 }
 
 
+/**
+ * Trigger a Travis build via Rules.
+ *
+ * @param boolean $ignore_lifetime
+ *   Whether to ignore the minimum lifetime.
+ * @param string $branch
+ *   Name of the repository branch to act upon.
+ */
 function travisbuilder_action_trigger_build($ignore_lifetime, $branch) {
-  // @ todo Allow separate repos to trigger as ctools configs.
-  $repository = check_plain(variable_get('travisbuilder_repo', ''));
+  $configs = _travisbuilder_configs();
+  $branch = ($branch) ? $branch : $configs['branch'];
 
-  _travisbuilder_trigger_build($repository, $branch, $ignore_lifetime);
+  _travisbuilder_trigger_build($configs['repo'], $branch, $ignore_lifetime);
 }

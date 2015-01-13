@@ -105,7 +105,7 @@ function _travisbuilder_trigger_build_submit($form, &$form_state) {
 function travisbuilder_build_list_page() {
   drupal_set_title(t('Travis Build History'));
   $output = t('<p>Recent Travis builds.</p>');
-  $output .= _travisbuilder_list_builds(variable_get('travisbuilder_repo', ''));
+  $output .= _travisbuilder_list_builds();
 
   return $output;
 }
@@ -118,15 +118,15 @@ function travisbuilder_build_list_page() {
  *   http://docs.travis-ci.com/api/#builds
  *   http://docs.travis-ci.com/api/#jobs
  *
- * @param string $repository
- *   Name of repository.
- *
  * @return array
  *   Renderable table array of recent builds.
  */
-function _travisbuilder_list_builds($repository) {
-  $client = travisbuilder_client($repository);
-  $repo_client = $client->fetchRepository($repository);
+function _travisbuilder_list_builds() {
+  $configs = _travisbuilder_configs();
+  $client = travisbuilder_client($configs['repo']);
+  $repo_client = $client->fetchRepository($configs['repo']);
+  $url = ($configs['private']) ? TRAVISBUILDER_URL_PRIVATE : TRAVISBUILDER_URL;
+
   // Render array.
   $table = array(
     'header' => array(
@@ -144,8 +144,8 @@ function _travisbuilder_list_builds($repository) {
     // Collect content.
     $builds = $repo_client->getBuilds();
     foreach ($builds as $build) {
-      $build_url = format_string('https://travis-ci.org/!repo/builds/!id', array(
-        '!repo' => check_plain($repository),
+      $build_url = format_string($url . '/!repo/builds/!id', array(
+        '!repo' => check_plain($configs['repo']),
         '!id' => $build->getId(),
       ));
       switch ($build->getResult()) {

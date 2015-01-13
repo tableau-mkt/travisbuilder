@@ -6,8 +6,8 @@
 
 use Travis\Client;
 
-define('TRAVISBUILDER_API_FREE', 'https://api.travis-ci.org');
-define('TRAVISBUILDER_API_PAID', 'https://api.travis-ci.com');
+define('TRAVISBUILDER_URL', 'https://travis-ci.org');
+define('TRAVISBUILDER_URL_PRIVATE', 'https://magnum.travis-ci.com');
 
 /**
  * Implements hook_menu().
@@ -109,7 +109,7 @@ function _travisbuilder_configs() {
  *   If the module is successfully configured, a fully configured Elomentary
  *   client will be returned. Otherwise, NULL will be returned.
  */
-function travisbuilder_client($repository, $clientInterface) {
+function travisbuilder_client($repository) {
   $client = &drupal_static(__FUNCTION__, array());
 
   // Only instantiate a new client if one hasn't already been.
@@ -121,7 +121,7 @@ function travisbuilder_client($repository, $clientInterface) {
 
     // Instantiate Travis client via library.
     try {
-      $client = new Client(NULL, $clientInterface, $token);
+      $client = new Client(NULL, 'Buzz\Client\Curl', $token);
     }
     catch (FieldException $e) {
       throw new DrupalException("Error using Travis client with message: " . $e->getMessage());
@@ -159,16 +159,18 @@ function _travisbuilder_trigger_build($repository, $branch = FALSE, $ignore_life
   $configs = _travisbuilder_configs();
   $branch = $branch ?: $configs['branch'];
   $time_since_last = time() - variable_get('travisbuilder_last', 0);
-  $watchdog_link = 'admin/config/system/travisbuilder';
+  $watchdog_link = l(t('Travis builder settings'), 'admin/config/system/travisbuilder');
+  $url = ($configs['private']) ? TRAVISBUILDER_URL_PRIVATE : TRAVISBUILDER_URL;
   $result = array(
     'status' => FALSE,
-    'vars' => array()
+    'message' => 'No message set',
+    'vars' => array(),
   );
 
   // Honor minimum lifetime.
   if ($ignore_lifetime || ($time_since_last > $configs['schedule'])) {
     // Get the right build.
-    $client = travisbuilder_client($repository, 'Buzz\Client\Curl');
+    $client = travisbuilder_client($repository);
     $repo_client = $client->fetchRepository($repository);
     // Find the right build.
     $builds = $repo_client->getBuilds()->findBy(array('branch' => $branch));
@@ -181,26 +183,29 @@ function _travisbuilder_trigger_build($repository, $branch = FALSE, $ignore_life
       // Interpret the response.
       reset($resonse['flash'][0]);
       $result['status'] = (key($resonse['flash'][0]) === 'error') ? FALSE : TRUE;
-      $result['message'] = '@message (Build ID: @build)';
+      $result['message'] = '@message (Branch: @branch. Build ID: @build)';
       $result['vars'] = array(
         '@message' => current($resonse['flash'][0]),
+        '@branch' => $branch,
         '@build' => $build->getId(),
       );
-      $build_url = format_string('https://travis-ci.org/!repo/builds/!id', array(
+      $build_url = format_string($url . '/!repo/builds/!id', array(
         '!repo' => $repository,
         '!id' => $build->getId(),
       ));
-      $watchdog_link = l('Visit Travis build #' . $build->getNumber(), $build_url);
+      $watchdog_link = l(t('Visit Travis build #') . $build->getNumber(), $build_url);
 
       // Timer for next time.
       variable_set('travisbuilder_last', time());
     }
     else {
-      $result['message'] = 'No build can be found for the current configurations.';
+      $result['message'] = 'No build can be found for the current configurations. (Branch: @branch)';
+      $result['vars'] = array('@branch' => $branch);
     }
   }
   else {
-    $result['message'] = 'Build restart failed due to minimum time limit';
+    $result['message'] = 'Build restart failed due to minimum time limit. (Branch: @branch)';
+    $result['vars'] = array('@branch' => $branch);
   }
 
   $severity = ($result['status']) ? WATCHDOG_NOTICE : WATCHDOG_ERROR;
