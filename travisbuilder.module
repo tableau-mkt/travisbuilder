@@ -159,6 +159,11 @@ function _travisbuilder_trigger_build($repository, $branch = FALSE, $ignore_life
   $configs = _travisbuilder_configs();
   $branch = $branch ?: $configs['branch'];
   $time_since_last = time() - variable_get('travisbuilder_last', 0);
+  $watchdog_link = 'admin/config/system/travisbuilder';
+  $result = array(
+    'status' => FALSE,
+    'vars' => array()
+  );
 
   // Honor minimum lifetime.
   if ($ignore_lifetime || ($time_since_last > $configs['schedule'])) {
@@ -171,48 +176,35 @@ function _travisbuilder_trigger_build($repository, $branch = FALSE, $ignore_life
 
     if ($build) {
       // Attempt to trigger.
-      $result = $client->restartBuild($build, $configs['access_token']);
+      $resonse = $client->restartBuild($build, $configs['access_token']);
 
       // Interpret the response.
-      reset($result['flash'][0]);
-      $reponse_message = current($result['flash'][0]);
-      $status_code = key($result['flash'][0]);
-      $build_id = $build->getId();
+      reset($resonse['flash'][0]);
+      $result['status'] = (key($resonse['flash'][0]) === 'error') ? FALSE : TRUE;
+      $result['message'] = '@message (Build ID: @build)';
+      $result['vars'] = array(
+        '@message' => current($resonse['flash'][0]),
+        '@build' => $build->getId(),
+      );
+      $build_url = format_string('https://travis-ci.org/!repo/builds/!id', array(
+        '!repo' => $repository,
+        '!id' => $build->getId(),
+      ));
       $watchdog_link = l('Visit Travis build #' . $build->getNumber(), $build_url);
 
       // Timer for next time.
       variable_set('travisbuilder_last', time());
     }
     else {
-      // Inform about failure.
-      $result = FALSE;
-      $reponse_message = t('No build can be found for the current configurations.');
-      $status_code = 'error';
-      $build_id = 'none';
-      $watchdog_link = 'admin/config/system/travisbuilder';
+      $result['message'] = 'No build can be found for the current configurations.';
     }
-
-    // Log it.
-    $build_url = format_string('https://travis-ci.org/!repo/builds/!id', array(
-      '!repo' => $repository,
-      '!id' => $build_id,
-    ));
-    $message = '@message (Build ID: @build.)';
-    $vars = array(
-      '@build' => $build_id,
-      '@message' => $reponse_message,
-    );
-    watchdog('travisbuilder', $message, $vars, WATCHDOG_NOTICE,
-      $watchdog_link
-    );
-
-    // Inform the user.
-    $type = ($status_code === 'error') ? 'error' : 'status';
-    drupal_set_message(t($message, $vars), $type);
   }
   else {
-    return FALSE;
+    $result['message'] = 'Build restart failed due to minimum time limit';
   }
+
+  $severity = ($result['status']) ? WATCHDOG_NOTICE : WATCHDOG_ERROR;
+  watchdog('travisbuilder', $result['message'], $result['vars'], $severity, $watchdog_link);
 
   return $result;
 }

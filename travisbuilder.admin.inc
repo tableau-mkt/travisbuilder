@@ -85,9 +85,14 @@ function travisbuilder_build_confirm_form($form_state) {
  */
 function _travisbuilder_trigger_build_submit($form, &$form_state) {
   $configs = _travisbuilder_configs();
+  $ignore = $form_state['values']['ignore'];
 
   // @todo Use text field for branch selection.
-  _travisbuilder_trigger_build($configs['repo'], $configs['branch']);
+  $result = _travisbuilder_trigger_build($configs['repo'], $configs['branch'], $ignore);
+
+  // Inform the user.
+  $type = ($result['status']) ? 'status' : 'error';
+  drupal_set_message(t($result['message'], $result['vars']), $type);
 }
 
 
