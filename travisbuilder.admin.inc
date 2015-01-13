@@ -60,6 +60,38 @@ function travisbuilder_settings_form($form_state) {
 
 
 /**
+ * Allows triggering a build via UI.
+ */
+function travisbuilder_build_confirm_form($form_state) {
+  // @todo Use text field for branch selection.
+  return array(
+    '#prefix' => t('Restart a Travis build of the currently configured repository and branch.'),
+    'ignore' => array(
+      '#type' => 'checkbox',
+      '#title' => t('Ignore minimum lifetime'),
+      '#description' => t('Forces a new build, even if the configured amount of time has not passed.'),
+    ),
+    '#submit' => array('_travisbuilder_trigger_build_submit'),
+    'submit' => array(
+      '#type' => 'submit',
+      '#value' => t('Restart build'),
+    ),
+  );
+}
+
+
+/**
+ * Submit action for triggering build.
+ */
+function _travisbuilder_trigger_build_submit($form, &$form_state) {
+  $configs = _travisbuilder_configs();
+
+  // @todo Use text field for branch selection.
+  _travisbuilder_trigger_build($configs['repo'], $configs['branch']);
+}
+
+
+/**
  * Deliver a page for build history.
  *
  * @return string

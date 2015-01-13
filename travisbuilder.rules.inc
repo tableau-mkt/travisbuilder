@@ -36,5 +36,5 @@ function travisbuilder_action_trigger_build($ignore_lifetime, $branch) {
   // @ todo Allow separate repos to trigger as ctools configs.
   $repository = check_plain(variable_get('travisbuilder_repo', ''));
 
-  _travisbuilder_trigger_build($repository, $ignore_lifetime, $branch);
+  _travisbuilder_trigger_build($repository, $branch, $ignore_lifetime);
 }
