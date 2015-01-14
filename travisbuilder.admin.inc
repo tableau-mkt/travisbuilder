@@ -6,9 +6,12 @@
 function travisbuilder_settings_form($form_state) {
   $configs = _travisbuilder_configs();
   $prefix = 'travisbuilder_';
-  $form = array(
-    '#prefix' => t('Last built @time',  array('@time', format_date($configs['last'], 'long'))
-  );
+
+  if ($configs['last']) {
+    $form = array(
+      '#prefix' => t('Last built: @time',  array('@time' => format_date($configs['last'], 'long')))
+    );
+  }
 
   $form[$prefix . 'private'] = array(
     '#type' => 'checkbox',
@@ -65,11 +68,15 @@ function travisbuilder_settings_form($form_state) {
  * Allows triggering a build via UI.
  */
 function travisbuilder_build_confirm_form($form_state) {
+  $configs = _travisbuilder_configs();
+  $prefix = t('Restart a Travis build of the configured repository and branch.');
+  if ($configs['last']) {
+    $prefix .= '<br>' . t('Last built: @time',  array('@time' => format_date($configs['last'], 'long')));
+  }
+
   // @todo Use text field for branch selection.
   return array(
-    '#prefix' => t('Restart a Travis build of the configured repository and branch. Last built @time', array(
-        array('@time', format_date($configs['last'], 'long')
-    )),
+    '#prefix' => $prefix,
     'ignore' => array(
       '#type' => 'checkbox',
       '#title' => t('Ignore minimum lifetime'),
