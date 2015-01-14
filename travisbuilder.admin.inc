@@ -6,13 +6,15 @@
 function travisbuilder_settings_form($form_state) {
   $configs = _travisbuilder_configs();
   $prefix = 'travisbuilder_';
-  $form = array();
+  $form = array(
+    '#prefix' => t('Last built @time',  array('@time', format_date($configs['last'], 'long'))
+  );
 
   $form[$prefix . 'private'] = array(
     '#type' => 'checkbox',
     '#title' => t('Private account'),
     '#default_value' => $configs['private'],
-    '#description' => t('Enable if using the paid private version of Travis.'),
+    '#description' => t('Enable if using the paid, private version of Travis.'),
   );
 
   // @todo Use a temporary token generated each time.
@@ -65,7 +67,9 @@ function travisbuilder_settings_form($form_state) {
 function travisbuilder_build_confirm_form($form_state) {
   // @todo Use text field for branch selection.
   return array(
-    '#prefix' => t('Restart a Travis build of the currently configured repository and branch.'),
+    '#prefix' => t('Restart a Travis build of the configured repository and branch. Last built @time', array(
+        array('@time', format_date($configs['last'], 'long')
+    )),
     'ignore' => array(
       '#type' => 'checkbox',
       '#title' => t('Ignore minimum lifetime'),
@@ -88,7 +92,7 @@ function _travisbuilder_trigger_build_submit($form, &$form_state) {
   $ignore = $form_state['values']['ignore'];
 
   // @todo Use text field for branch selection.
-  $result = _travisbuilder_trigger_build($configs['repo'], $configs['branch'], $ignore);
+  $result = _travisbuilder_trigger_build($configs['branch'], $ignore);
 
   // Inform the user.
   $type = ($result['status']) ? 'status' : 'error';
@@ -104,7 +108,7 @@ function _travisbuilder_trigger_build_submit($form, &$form_state) {
  */
 function travisbuilder_build_list_page() {
   drupal_set_title(t('Travis Build History'));
-  $output = t('<p>Recent Travis builds.</p>');
+  $output = '<p>' . t('Recent Travis builds.') . '</p>';
   $output .= _travisbuilder_list_builds();
 
   return $output;
@@ -140,7 +144,7 @@ function _travisbuilder_list_builds() {
   );
   $rows = array();
 
-  if($repo_client) {
+  if ($repo_client) {
     // Collect content.
     $builds = $repo_client->getBuilds();
     foreach ($builds as $build) {

@@ -47,5 +47,5 @@ function travisbuilder_action_trigger_build($ignore_lifetime, $branch) {
   $configs = _travisbuilder_configs();
   $branch = ($branch) ? $branch : $configs['branch'];
 
-  _travisbuilder_trigger_build($configs['repo'], $branch, $ignore_lifetime);
+  _travisbuilder_trigger_build($branch, $ignore_lifetime);
 }
