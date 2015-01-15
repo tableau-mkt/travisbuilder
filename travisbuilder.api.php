@@ -26,8 +26,8 @@
  * @see travisbuilder_client()
  */
 function hook_eloqua_rest_api_client_alter(&$client) {
-  // Alter the user-agent string sent by Elomentary to Eloqua.
-  $client->getHttpClient()->setOption('user_agent', 'My new User Agent');
+  // Alter the client.
+  $this->browser->addListener(new myListener($token));
 }
 
 
