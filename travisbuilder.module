@@ -82,7 +82,6 @@ function travisbuilder_permission() {
  * @return array
  */
 function _travisbuilder_configs() {
-  // @todo With multiple repos, will need update.
   $configs = array();
   $defaults = array(
     'private' => 0,
@@ -90,7 +89,7 @@ function _travisbuilder_configs() {
     'branch' => 'master',
     'access_token' => '',
     'schedule' => 10800,
-    'last' => 0,
+    'lasts' => array(),
   );
   foreach ($defaults as $key => $default) {
     $configs[$key] = variable_get('travisbuilder_' . $key, $default);
@@ -156,7 +155,8 @@ function travisbuilder_client() {
 function _travisbuilder_trigger_build($branch = FALSE, $ignore_lifetime = FALSE) {
   $configs = _travisbuilder_configs();
   $branch = $branch ?: $configs['branch'];
-  $time_since_last = REQUEST_TIME - $configs['last'];
+  $last_time = isset($configs['lasts'][$branch]) ? $configs['lasts'][$branch] : 0;
+  $time_since_last = REQUEST_TIME - $last_time;
 
   // Reporting defaults.
   $watchdog_link = l(t('Travis builder settings'), 'admin/config/system/travisbuilder');
@@ -199,7 +199,8 @@ function _travisbuilder_trigger_build($branch = FALSE, $ignore_lifetime = FALSE)
       $watchdog_link = l(t('Visit Travis build #') . $build->getNumber(), $build_url);
 
       // Timer for next time.
-      variable_set('travisbuilder_last', REQUEST_TIME);
+      $configs['lasts'][$branch] = REQUEST_TIME;
+      variable_set('travisbuilder_lasts', $configs['lasts']);
     }
     else {
       $result['message'] = 'No build can be found for the current configurations. (Branch: @branch)';

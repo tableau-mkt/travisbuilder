@@ -7,12 +7,6 @@ function travisbuilder_settings_form($form_state) {
   $configs = _travisbuilder_configs();
   $prefix = 'travisbuilder_';
 
-  if ($configs['last']) {
-    $form = array(
-      '#prefix' => t('Last built: @time',  array('@time' => format_date($configs['last'], 'long')))
-    );
-  }
-
   $form[$prefix . 'private'] = array(
     '#type' => 'checkbox',
     '#title' => t('Private account'),
@@ -33,7 +27,7 @@ function travisbuilder_settings_form($form_state) {
     '#type' => 'select',
     '#title' => t('Build minimum lifetime'),
     '#default_value' => $configs['schedule'],
-    '#description' => t('This build lifetime will be enforced to avoid build overlap.'),
+    '#description' => t('This build lifetime will be enforced to avoid build overlap. Kept separate per branch.'),
     '#options' => array(
       0 => t('None'),
       900 => t('!num minutes', array('!num' => '15')),
@@ -70,8 +64,9 @@ function travisbuilder_settings_form($form_state) {
 function travisbuilder_build_confirm_form($form_state) {
   $configs = _travisbuilder_configs();
   $prefix = t('Restart a Travis build of the configured repository and branch.');
-  if ($configs['last']) {
-    $prefix .= '<br>' . t('Last built: @time',  array('@time' => format_date($configs['last'], 'long')));
+  $last_time = isset($configs['lasts'][$configs['branch']]) ? $configs['lasts'][$configs['branch']] : 0;
+  if ($last_time) {
+    $prefix .= '<br>' . t('Last built: @time',  array('@time' => format_date($last_time, 'long')));
   }
 
   // @todo Use text field for branch selection.

@@ -31,7 +31,7 @@ In order to trigger private repo builds, you'll need to gerneate a "Travis token
 
 ## Rules
 
-This module uses [Rules][rules] to allow triggering builds as an action.  This is a super flexible way to use whatever event with whatever conditions to restart your builds.  You can trigger different branches with each Rules action.  There is also a minimum lifetime setting, which can be overridden by specific Rules.  It's not a direct dependency, because of probable custom use :)
+This module uses [Rules][rules] to allow triggering builds as an action.  This is a super flexible way to use whatever event with whatever conditions to restart your builds.  You can trigger different branches with each Rules action.  There is also a minimum lifetime setting (stored per branch), which can be overridden by specific Rules.  It's not a direct dependency, because of probable custom use :)
 
 ### Manaully
 
