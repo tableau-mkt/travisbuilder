@@ -1,6 +1,6 @@
 {
   "require": {
-    "l3l0/php-travis-client": "dev-master"
+    "l3l0/php-travis-client": "0.1.0-alpha1"
   },
   "repositories": [{
     "type": "vcs",
